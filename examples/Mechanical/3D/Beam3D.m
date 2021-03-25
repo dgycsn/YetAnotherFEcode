@@ -6,7 +6,7 @@ clc
 elementType = 'HEX20';
 % elementType = 'TET10';
 
-
+nDOFPerNode=3;
 %% PREPARE MODEL
 
 % DATA ____________________________________________________________________
