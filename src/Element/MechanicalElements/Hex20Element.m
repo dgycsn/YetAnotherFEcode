@@ -29,30 +29,17 @@ classdef Hex20Element < Element
             % self = Hex20Element(Material,Ngauss)
             % defines element's properties
             %______________________________________________________________
+            self.Material = Material;
             if nargin == 1
-                self.Material = Material;
                 Ngauss = 2;
-                [x,w]=lgwt(Ngauss,-1,1);
-                self.quadrature.Ng = Ngauss;
-                self.quadrature.X = x;	% gauss integration points
-                self.quadrature.W = w;	% gauss integration weights
-            elseif nargin==2
-                self.Material = Material;
-                [x,w]=lgwt(Ngauss,-1,1);
-                self.quadrature.Ng = Ngauss;
-                self.quadrature.X = x;
-                self.quadrature.W = w;
             end
+            [x,w]=lgwt(Ngauss,-1,1);
+            self.quadrature.Ng = Ngauss;
+            self.quadrature.X = x;	% gauss integration points
+            self.quadrature.W = w;	% gauss integration weights
             % INIZIALIZATION of some matrices (this should speedup
             % numerical integration)
-            v = self.Material.POISSONS_RATIO;
-            E = self.Material.YOUNGS_MODULUS;
-            C = [1-v v v 0 0 0; % isotropic material assumption
-                v 1-v v 0 0 0;
-                v v 1-v 0 0 0;
-                0 0 0 .5*(1-2*v) 0 0;
-                0 0 0 0 .5*(1-2*v) 0;
-                0 0 0 0 0 .5*(1-2*v)]*E/((1+v)*(1-2*v));
+            C = self.Material.get_stress_strain_matrix_3D;
             H = [1 0 0 0 0 0 0 0 0;
                 0 0 0 0 1 0 0 0 0;
                 0 0 0 0 0 0 0 0 1;
@@ -73,7 +60,6 @@ classdef Hex20Element < Element
             %
             % Mel = mass_matrix_global(self,nodes,~);
             % Mel: element-level mass matrix (in global coordinates)
-            % nodes: [x1 y1 z1; ... ; x20 y20 z20] (coordinates)
             %______________________________________________________________
             X = self.quadrature.X;
             W = self.quadrature.W;
@@ -85,28 +71,8 @@ classdef Hex20Element < Element
                         g = X(ii);
                         h = X(jj);
                         r = X(kk);
-                        % shape functions and detJ (ABAQUS ORDER)
-                        N = [ -1/8*(1-g)*(1-h)*(1-r)*(2+g+h+r); % n1
-                            -1/8*(1+g)*(1-h)*(1-r)*(2-g+h+r); % n2
-                            -1/8*(1+g)*(1+h)*(1-r)*(2-g-h+r); % n3
-                            -1/8*(1-g)*(1+h)*(1-r)*(2+g-h+r); % n4
-                            -1/8*(1-g)*(1-h)*(1+r)*(2+g+h-r); % n5
-                            -1/8*(1+g)*(1-h)*(1+r)*(2-g+h-r); % n6
-                            -1/8*(1+g)*(1+h)*(1+r)*(2-g-h-r); % n7
-                            -1/8*(1-g)*(1+h)*(1+r)*(2+g-h-r); % n8
-                            +1/4*(1-g)*(1+g)*(1-h)*(1-r);     % n9
-                            +1/4*(1-h)*(1+h)*(1+g)*(1-r);     % n10
-                            +1/4*(1-g)*(1+g)*(1+h)*(1-r);     % n11
-                            +1/4*(1-h)*(1+h)*(1-g)*(1-r);     % n12
-                            +1/4*(1-g)*(1+g)*(1-h)*(1+r);     % n13
-                            +1/4*(1-h)*(1+h)*(1+g)*(1+r);     % n14
-                            +1/4*(1-g)*(1+g)*(1+h)*(1+r);     % n15
-                            +1/4*(1-h)*(1+h)*(1-g)*(1+r);     % n16
-                            +1/4*(1-r)*(1+r)*(1-g)*(1-h);     % n17
-                            +1/4*(1-r)*(1+r)*(1+g)*(1-h);     % n18
-                            +1/4*(1-r)*(1+r)*(1+g)*(1+h);     % n19
-                            +1/4*(1-r)*(1+r)*(1-g)*(1+h)];    % n20
-                        [~,detJ] = G_HEX20(self,g,h,r); % <------- FUNCTION
+                        N = self.shape_functions(g,h,r);
+                        [~,detJ] = shape_function_derivatives(self,g,h,r);
                         NN(1,1:3:60) = N;
                         NN(2,2:3:60) = N;
                         NN(3,3:3:60) = N;
@@ -134,7 +100,7 @@ classdef Hex20Element < Element
                         h = X(jj);              % natural coordinates
                         r = X(kk);              % natural coordinates
                         we = W(ii)*W(jj)*W(kk); % weights
-                        [G,detJ,dH] = G_HEX20(self,g,h,r); % <---- FUNCTION
+                        [G,detJ,dH] = shape_function_derivatives(self,g,h,r);
                         th  = G*displ;
                         A = self.initialization.A;
                         A(1,1)=th(1); A(4,1)=th(2); A(5,1)=th(3); A(2,2)=th(2); A(4,2)=th(1);
@@ -163,15 +129,6 @@ classdef Hex20Element < Element
             end
         end
         
-        function [K,F] = tangent_stiffness_and_force_local(self)
-            % I have to include this to make the classdef happy...
-            a=self.nDim; K=0*a; F=0;
-            disp(' [tangent_stiffness_and_force_local]: I''m useless! :(')
-            % ... but is useless for continuum elements (they're directly
-            % computed in the global reference frame through isoparametric
-            % mapping)
-        end
-        
         function xe = extract_element_data(self,x)
             % x is a vector of full DOFs
             index = get_index(self.nodeIDs,self.nDOFPerNode);
@@ -186,22 +143,30 @@ classdef Hex20Element < Element
             % dividing the load on the 20 nodes according to the element
             % volume (V/20) [it might not be the best way, but still...]
             %______________________________________________________________
-            F = sparse(60,1);
-            F(3:3:end) = self.vol/20; % uniformly distributed pressure on the structure
+            f = sparse(60,1);
+            f(3:3:end) = self.vol/20; % uniformly distributed pressure on the structure
         end
         
         % ANCILLARY FUNCTIONS _____________________________________________
         
         function V = get.vol(self)
-            xyz = self.nodes(1:8,:);
-            x = xyz(:,1); y = xyz(:,2); z = xyz(:,3);
-            dx = max(x)-min(x); dy = max(y)-min(y); dz = max(z)-min(z);
-            alphaRadius = max([dx,dy,dz])+1;
-            shp = alphaShape(x,y,z,alphaRadius);
-            V = volume(shp);
+            % volume is given by the integral of detJ (jacobian from 
+            % isoparametric to physical space) over the volume of the
+            % isoparametric element
+            detJ = 0;
+            W = self.quadrature.W;
+            X = self.quadrature.X;
+            for ii = 1 : length( w )
+                g = X(1,ii);
+                h = X(2,ii);
+                r = X(3,ii);
+                [~, detJ_i] = shape_function_derivatives(self,g,h,r);
+                detJ = detJ + detJ_i * W(ii);
+            end
+            V = detJ;
         end
         
-        function [G,detJ,dH] = G_HEX20(self,g,h,r)
+        function [G,detJ,dH] = shape_function_derivatives(self,g,h,r)
             %______________________________________________________________
             %
             % [G,detJ,dH] = G_HEX20(self,g,h,r)
@@ -242,49 +207,59 @@ classdef Hex20Element < Element
     end % methods
     
     methods (Static)
-        function [x,w]=lgwt(N,a,b)
-            % _____________________________________________________________
-            %
-            % lgwt.m (downloaded from mathworks file exchange)
-            %
-            % This script is for computing definite integrals using
-            % Legendre-Gauss quadrature. Computes the Legendre-Gauss nodes
-            % and weights  on an interval [a,b] with truncation order N
-            %
-            % Suppose you have a continuous function f(x) which is defined
-            % on [a,b] which you can evaluate at any x in [a,b]. Simply
-            % evaluate it at all of the values contained in the x vector to
-            % obtain a vector f. Then compute the definite integral using
-            % sum(f.*w);
-            %
-            % Written by Greg von Winckel - 02/25/2004
-            % _____________________________________________________________
-            N=N-1;
-            N1=N+1; N2=N+2;
-            xu=linspace(-1,1,N1)';
-            % Initial guess
-            y=cos((2*(0:N)'+1)*pi/(2*N+2))+(0.27/N1)*sin(pi*xu*N/N2);
-            L=zeros(N1,N2);  % Legendre-Gauss Vandermonde Matrix
-            Lp=zeros(N1,N2); % Derivative of LGVM
-            % Compute the zeros of the N+1 Legendre Polynomial
-            % using the recursion relation and the Newton-Raphson method
-            y0=2;
-            % Iterate until new points are uniformly within epsilon of old points
-            while max(abs(y-y0))>eps
-                L(:,1)=1;
-                Lp(:,1)=0;
-                L(:,2)=y;
-                Lp(:,2)=1;
-                for k=2:N1
-                    L(:,k+1)=( (2*k-1)*y.*L(:,k)-(k-1)*L(:,k-1) )/k;
-                end
-                Lp=(N2)*( L(:,N1)-y.*L(:,N2) )./(1-y.^2);
-                y0=y;
-                y=y0-L(:,N2)./Lp;
-            end
-            x=(a*(1-y)+b*(1+y))/2;  % Linear map from[-1,1] to [a,b]
-            w=(b-a)./((1-y.^2).*Lp.^2)*(N2/N1)^2;   % Compute the weights
+        
+        function N = shape_functions(g,h,r)
+            % N = shape_functions(g,h,r)
+            % SHAPE FUNCTIONS FOR A 20-NODED HEXAHEDRON
+            % - see Abaqus documentation:
+            % Abaqus theory guide > Elements > Continuum elements > ...
+            % ... > 3.2.4 Solid isoparametric quadrilaterals and hexahedra
+            N = [ -1/8*(1-g)*(1-h)*(1-r)*(2+g+h+r); % n1
+                -1/8*(1+g)*(1-h)*(1-r)*(2-g+h+r);   % n2
+                -1/8*(1+g)*(1+h)*(1-r)*(2-g-h+r);   % n3
+                -1/8*(1-g)*(1+h)*(1-r)*(2+g-h+r);   % n4
+                -1/8*(1-g)*(1-h)*(1+r)*(2+g+h-r);   % n5
+                -1/8*(1+g)*(1-h)*(1+r)*(2-g+h-r);   % n6
+                -1/8*(1+g)*(1+h)*(1+r)*(2-g-h-r);   % n7
+                -1/8*(1-g)*(1+h)*(1+r)*(2+g-h-r);   % n8
+                +1/4*(1-g)*(1+g)*(1-h)*(1-r);       % n9
+                +1/4*(1-h)*(1+h)*(1+g)*(1-r);       % n10
+                +1/4*(1-g)*(1+g)*(1+h)*(1-r);       % n11
+                +1/4*(1-h)*(1+h)*(1-g)*(1-r);       % n12
+                +1/4*(1-g)*(1+g)*(1-h)*(1+r);       % n13
+                +1/4*(1-h)*(1+h)*(1+g)*(1+r);       % n14
+                +1/4*(1-g)*(1+g)*(1+h)*(1+r);       % n15
+                +1/4*(1-h)*(1+h)*(1-g)*(1+r);       % n16
+                +1/4*(1-r)*(1+r)*(1-g)*(1-h);       % n17
+                +1/4*(1-r)*(1+r)*(1+g)*(1-h);       % n18
+                +1/4*(1-r)*(1+r)*(1+g)*(1+h);       % n19
+                +1/4*(1-r)*(1+r)*(1-g)*(1+h)];      % n20
         end
+        
+        function X = natural_coordinates
+            X = [ ...
+                -1 -1 -1
+                +1 -1 -1
+                +1 +1 -1
+                -1 +1 -1
+                -1 -1 +1
+                +1 -1 +1
+                +1 +1 +1
+                -1 +1 +1
+                 0 -1 -1
+                +1  0 -1
+                 0 +1 -1
+                -1  0 -1
+                 0 -1 +1
+                +1  0 +1
+                 0 +1 +1
+                -1  0 +1
+                -1 -1  0
+                +1 -1  0
+                +1 +1  0
+                -1 +1  0];
+        end
+        
     end
     
 end % classdef

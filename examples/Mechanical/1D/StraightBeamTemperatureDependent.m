@@ -6,7 +6,7 @@ clear all; close all; clc
 l = 0.2; %1 % 0.2
 h = 1e-3;
 b = 1e-2; %1e-1 % 1e-2
-nDOFperNode=3;
+
 w   = 5; %1/b*l is the width of the sin^2 graph of temperature pulse on the beam
 c = 0.215; % location of the pulse center: factor of beam length
 n_VMs = 5; % number of vibration modes

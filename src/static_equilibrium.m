@@ -5,10 +5,11 @@ K = Assembly.DATA.K;
 u_lin = Assembly.solve_system(K,Fext);
 u0 = Assembly.constrain_vector(u_lin);
 
-[nsteps,tol,method] = parse_inputs(varargin{:});
+[nsteps,tol,method,displayoption] = parse_inputs(varargin{:});
 switch method
     case 'fsolve'
-        options = optimoptions('fsolve','SpecifyObjectiveGradient',true,'MaxIterations',10000);
+        options = optimoptions('fsolve','SpecifyObjectiveGradient',true,...
+            'MaxIterations',10000,'Display',displayoption);
         [ueq] = fsolve(@(u)f(u,Assembly,Fext),u0,options);
         u = Assembly.unconstrain_vector(ueq);
         
@@ -48,11 +49,12 @@ F = Assembly.constrain_vector(Fint - Fext);
 end
 
 
-function [nsteps,tol,method] = parse_inputs(varargin)
+function [nsteps,tol,method,displayoption] = parse_inputs(varargin)
 %% parsing inputs
 defaultnsteps = 100;
 defaulttol = 1e-6;
 defaultmethod = 'fsolve';
+defaultdisplay = 'final';
 
 p = inputParser;
 addParameter(p,'nsteps',defaultnsteps, @(x)validateattributes(x, ...
@@ -61,9 +63,12 @@ addParameter(p,'tol',defaulttol, @(x)validateattributes(x, ...
     {'numeric'},{'nonempty','positive'}) );
 addParameter(p,'method',defaultmethod,@(x)validateattributes(x, ...
     {'char'},{'nonempty'}))
+addParameter(p,'display',defaultdisplay,@(x)validateattributes(x, ...
+    {'char'},{'nonempty'}))
 parse(p,varargin{:});
 
 nsteps = p.Results.nsteps;
 tol = p.Results.tol;
 method = p.Results.method;
+displayoption = p.Results.display;
 end

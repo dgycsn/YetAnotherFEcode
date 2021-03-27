@@ -15,7 +15,7 @@ classdef (Abstract) Element < handle
     
     methods (Abstract)
         % every subclass must implement the below methods on its own (in
-        % addition to its own methods        
+        % addition to its own methods)
         [K,F] = tangent_stiffness_and_force(self,varargin)
         varargout    = extract_element_data(self,varargin)    % get the element unknowns from global unkowns
     end    

@@ -44,7 +44,7 @@ if dimension == 3   % For 3D plots
         [X,Y,Z] = tune_coordinates(X,Y,Z);
     end
     
-    patch(X,Y,Z,'w','FaceAlpha',1.0,'EdgeAlpha',1,...
+    p = patch(X,Y,Z,'w','FaceAlpha',1.0,'EdgeAlpha',1,...
         'EdgeColor','k','LineStyle','-','DisplayName','Mesh');
     view(3)
     set(gca,'XTick',[]) ; set(gca,'YTick',[]); set(gca,'ZTick',[]) ;
@@ -56,7 +56,7 @@ elseif dimension == 2           % For 2D plots
     if elementdim == 2
         X = Nodes(Elements',1); X = reshape(X, nnel, nel);
         Y = Nodes(Elements',2); Y = reshape(Y, nnel, nel);
-        patch(X,Y,'w','DisplayName','Mesh')
+        p = patch(X,Y,'w','DisplayName','Mesh');
     else % line
         plot(Nodes(:,1),Nodes(:,2),'.-k', 'Markersize',10);
     end
@@ -66,9 +66,17 @@ end
 if show ~= 0
     k = 1:nnode ;
     nd = k' ;
-    for i = 1:nel
-        text(X(:,i),Y(:,i),int2str(nd(Elements(i,:))),'fontsize',8,'color','k');
-        text(mean(X(:,i)),mean(Y(:,i)),int2str(i),'fontsize',10,'color','r') ;
+    if size(Nodes,2)==2
+        for i = 1:nel
+            text(X(:,i),Y(:,i),int2str(nd(Elements(i,:))),'fontsize',8,'color','k');
+            text(mean(X(:,i)),mean(Y(:,i)),int2str(i),'fontsize',10,'color','r') ;
+        end
+    elseif size(Nodes,2)==3
+        for i = 1:nel
+            text(X(:,i),Y(:,i),Z(:,i),int2str(nd(Elements(i,:))),'fontsize',8,'color','k');
+            text(mean(X(:,i)),mean(Y(:,i)),mean(Z(:,i)),int2str(i),'fontsize',10,'color','r') ;
+        end
+        p.FaceAlpha = 0.2;
     end
 end
 rotate3d on;
