@@ -3,6 +3,7 @@
 clear all; close all; clc
 %% parameters
 % geometry
+nDOFperNode=3;
 l = 0.2; %1 % 0.2
 h = 1e-3;
 b = 1e-2; %1e-1 % 1e-2
@@ -62,29 +63,24 @@ norm(F3check.data - F3)/norm(F3)
 
 S = BeamAssembly.scalar('strain_energy',u0);
 
-%% Thermal beam
-% Material
-myThermalBeamMaterial = KirchoffMaterial();
-set(myThermalBeamMaterial,'YOUNGS_MODULUS', E,'DENSITY',rho,'POISSONS_RATIO',nu,'THERMAL_EXPANSION_COEFFICIENT', alpha_T);
-
-% Element
-myElementConstructor = @()ThermalBeamElement(b, h, myThermalBeamMaterial); % same element all across the domain
-
-% Mesh
-ThermalBeamMesh = Mesh(Nodes);
-ThermalBeamMesh.nDOFPerNode = nDOFperNode;
-ThermalBeamMesh.create_elements_table(Elements,myElementConstructor);
-
-% Set dirichlet DOFs
-ThermalBeamMesh.set_essential_boundary_condition([1 ThermalBeamMesh.nNodes],[1 2 3],0) % Doubly clamped beam
-
-ThermalBeamAssembly = Assembly(ThermalBeamMesh);
-% force
-% uniform transverse external force
-f = ThermalBeamAssembly.uniform_body_force();
-
-
-
-
-
+% %% Thermal beam
+% % Material
+% myThermalBeamMaterial = KirchoffMaterial();
+% set(myThermalBeamMaterial,'YOUNGS_MODULUS', E,'DENSITY',rho,'POISSONS_RATIO',nu,'THERMAL_EXPANSION_COEFFICIENT', alpha_T);
+% 
+% % Element
+% myElementConstructor = @()ThermalBeamElement(b, h, myThermalBeamMaterial); % same element all across the domain
+% 
+% % Mesh
+% ThermalBeamMesh = Mesh(Nodes);
+% ThermalBeamMesh.nDOFPerNode = nDOFperNode;
+% ThermalBeamMesh.create_elements_table(Elements,myElementConstructor);
+% 
+% % Set dirichlet DOFs
+% ThermalBeamMesh.set_essential_boundary_condition([1 ThermalBeamMesh.nNodes],[1 2 3],0) % Doubly clamped beam
+% 
+% ThermalBeamAssembly = Assembly(ThermalBeamMesh);
+% % force
+% % uniform transverse external force
+% f = ThermalBeamAssembly.uniform_body_force();
 

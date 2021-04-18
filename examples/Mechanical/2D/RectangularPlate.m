@@ -41,6 +41,8 @@ K = PlateAssembly.stiffness_matrix();
 M = PlateAssembly.mass_matrix();
 C = PlateAssembly.damping_matrix();
 
+PlateAssembly.DATA.K=K;
+
 % Tensor Assembly
 T2 = PlateAssembly.tensor('T2',[myMesh.nDOFs, myMesh.nDOFs, myMesh.nDOFs], [2,3]);
 T3 = PlateAssembly.tensor('T3',[myMesh.nDOFs, myMesh.nDOFs, myMesh.nDOFs, myMesh.nDOFs], [2,3,4]);
