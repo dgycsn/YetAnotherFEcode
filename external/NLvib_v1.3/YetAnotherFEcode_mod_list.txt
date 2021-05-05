@@ -1,0 +1,10 @@
+21 april 2021
+
+LIST OF CHANGES wrt original NLvib
+- "FE_system" system class added to handle FE models from YetAnotherFEcode
+- "FE" and "CUSTOM" nonlinearity case added to
+	. HB_residual.m (HB_nonlinear_forces_AFT function, global nonlinearities)
+	. shooting_residual.m (nonlinear_forces function)
+
+*** Note ***
+- only "FE" case has been tested using HB and NMA (see 1D beam example)

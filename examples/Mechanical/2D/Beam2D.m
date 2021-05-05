@@ -73,12 +73,12 @@ end
 V0 = BeamAssembly.unconstrain_vector(V0);
 
 % PLOT
-mod = 1;
+mod = 2;
 elementPlot = elements(:,1:4); % plot only corners (otherwise it's a mess)
 figure('units','normalized','position',[.2 .1 .6 .8])
 PlotMesh(nodes, elementPlot, 0);
 v1 = reshape(V0(:,mod), 2, []).';
-PlotFieldonDeformedMesh(nodes, elementPlot, v1, 'factor', Ly*1.1);
+PlotFieldonDeformedMesh(nodes, elementPlot, v1, 'factor', max(nodes(:,2)));
 title(['\Phi_' num2str(mod) ' - Frequency = ' num2str(f0(mod),3) ' Hz'])
 
 
@@ -93,7 +93,7 @@ title(['\Phi_' num2str(mod) ' - Frequency = ' num2str(f0(mod),3) ' Hz'])
 F = zeros(myMesh.nDOFs,1);
 nf = find_node(Lx/2,Ly/2,[],nodes); % node where to put the force
 node_force_dofs = get_index(nf, myMesh.nDOFPerNode );
-F(node_force_dofs(2)) = 10e6;
+F(node_force_dofs(2)) = 10e5;
 
 u_lin = BeamAssembly.solve_system(K, F);
 ULIN = reshape(u_lin,2,[]).';	% Linear response
@@ -105,7 +105,7 @@ fprintf(['\n <strong>Max displacements</strong>:\n  Linear:\t\t%.3i \n' ...
 
 % PLOT
 figure('units','normalized','position',[.2 .1 .6 .8])
-scale = 5;
+scale = 100;
 PlotMesh(nodes, elementPlot, 0);
 PlotFieldonDeformedMesh(nodes,elementPlot,UNL,'factor',scale,'color','k');
 colormap jet

@@ -24,6 +24,8 @@ classdef KirchoffMaterial < Material
         function D = get_stress_strain_matrix_2D(self)
             E = self.YOUNGS_MODULUS;
             nu = self.POISSONS_RATIO;
+            self.lambda = nu*E / ((1 + nu) * (1 - 2*nu));
+            self.mu  = E / (2*(1 + nu));
 
             if self.PLANE_STRESS
                 D = E/(1-nu^2)*[1   nu  0;
@@ -38,13 +40,17 @@ classdef KirchoffMaterial < Material
         end
         
         function D = get_stress_strain_matrix_3D(self)
+            nu = self.POISSONS_RATIO;
+            E = self.YOUNGS_MODULUS;
+            self.lambda = nu*E / ((1 + nu) * (1 - 2*nu));
+            self.mu  = E / (2*(1 + nu));
+            
             D =[self.lambda + 2*self.mu, self.lambda, self.lambda, 0, 0, 0;
                 self.lambda, self.lambda + 2*self.mu, self.lambda, 0, 0, 0;
                 self.lambda, self.lambda, self.lambda + 2*self.mu, 0, 0, 0;
                 0, 0, 0, self.mu, 0, 0;
                 0, 0, 0, 0, self.mu, 0;
                 0, 0, 0, 0, 0, self.mu];
-        
         end
     end
 end
