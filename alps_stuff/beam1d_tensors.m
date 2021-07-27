@@ -114,24 +114,25 @@ F_ext = @(t) Famp * F * sin(omega_ext * t);
 T =  2*pi/omega_ext; % time period of forcing
 dt = T/50/4;
 tmax = 160*T; 
+Fs=1/dt;
 
 %% nonlin full integration 
 % Instantiate object for nonlinear time integration
-TI_NL = ImplicitNewmark('timestep',dt,'alpha',0.005);
-
-u0=zeros( BeamMesh.nDOFs, 1);
-q0 = BeamAssembly.constrain_vector(u0);
-qd0 = BeamAssembly.constrain_vector(u0);
-qdd0 = BeamAssembly.constrain_vector(u0);
-
+% TI_NL = ImplicitNewmark('timestep',dt,'alpha',0.005);
+% 
+% u0=zeros( BeamMesh.nDOFs, 1);
+% q0 = BeamAssembly.constrain_vector(u0);
+% qd0 = BeamAssembly.constrain_vector(u0);
+% qdd0 = BeamAssembly.constrain_vector(u0);
+% 
 % Linear Residual evaluation function handle
-residual_NL_full = @(q,qd,qdd,t)residual_nonlinear(q,qd,qdd,t,BeamAssembly,F_ext);
-
+% residual_NL_full = @(q,qd,qdd,t)residual_nonlinear(q,qd,qdd,t,BeamAssembly,F_ext);
+% 
 % Nonlinear Time Integration
-tic
-TI_NL.Integrate(q0,qd0,qdd0,tmax,residual_NL_full);
-TI_NL.Solution.u = BeamAssembly.unconstrain_vector(TI_NL.Solution.q);
-time_nonlin_full=toc;
+% tic
+% TI_NL.Integrate(q0,qd0,qdd0,tmax,residual_NL_full);
+% TI_NL.Solution.u = BeamAssembly.unconstrain_vector(TI_NL.Solution.q);
+% time_nonlin_full=toc;
 
 %% Reduced basis
 % For demonstration purposes, we simply reduce the nonlinear system using
@@ -148,15 +149,15 @@ q0 = zeros(m+m*(m+1)/2,1);
 qd0 = zeros(m+m*(m+1)/2,1);
 qdd0 = zeros(m+m*(m+1)/2,1);
 %% Reduced solution Nonlinear
-TI_NL_red = ImplicitNewmark('timestep',dt,'alpha',0.005);
-
-% Modal nonlinear Residual evaluation function handle
-Residual_NL_red = @(q,qd,qdd,t)residual_reduced_nonlinear(q,qd,qdd,t,BeamReducedAssembly,F_ext);
-tic
-% time integration
-TI_NL_red.Integrate(q0,qd0,qdd0,tmax,Residual_NL_red);
-TI_NL_red.Solution.u = V * TI_NL_red.Solution.q;
-time_nonlin_red=toc;
+% TI_NL_red = ImplicitNewmark('timestep',dt,'alpha',0.005);
+% 
+% % Modal nonlinear Residual evaluation function handle
+% Residual_NL_red = @(q,qd,qdd,t)residual_reduced_nonlinear(q,qd,qdd,t,BeamReducedAssembly,F_ext);
+% tic
+% % time integration
+% TI_NL_red.Integrate(q0,qd0,qdd0,tmax,Residual_NL_red);
+% TI_NL_red.Solution.u = V * TI_NL_red.Solution.q;
+% time_nonlin_red=toc;
 
 %% tensors
 %different notations T2-->Q3 T3-->Q4
@@ -179,33 +180,40 @@ tensors.T2=T2_red;
 tensors.T3=T3_red;
 tensors.T2t=T2t;
 tensors.T3t=T3t;
+tensors.V=V;
 %% nonlin integration tensors
 % Instantiate object for nonlinear time integration
 TI_NL_t = ImplicitNewmark('timestep',dt,'alpha',0.005);
 
 % Linear Residual evaluation function handle
-F_ext_red = @(t) Famp * V'*F * sin(omega_ext * t);
-residual_NL_t = @(q,qd,qdd,t)residual_nonlinear_tensor(q,qd,qdd,t,tensors,F_ext_red);
+residual_NL_t = @(q,qd,qdd,t)residual_nonlinear_tensor(q,qd,qdd,t,tensors,F_ext);
 
 % Nonlinear Time Integration
 tic
 TI_NL_t.Integrate(q0,qd0,qdd0,tmax,residual_NL_t);
-TI_NL_t.Solution.u = V*TI_NL_t.Solution.q;
+TI_NL_t.Solution.u = BeamReducedAssembly.V*TI_NL_t.Solution.q;
 time_nonlin_tensor=toc;
+%% fft
+fft_cycles=2;
+last_cycles_sol=TI_NL_t.Solution.u(forced_dof,end-fft_cycles*T/dt:end);
+[~, Y, ~] = fft_yFs(last_cycles_sol, Fs);
+w=max(Y);
+% nonlin_tensor(curr_freq_step,curr_amp_step)=norm(w);
 %% plotting
 figure;hold on
-plot(TI_NL.Solution.time, TI_NL.Solution.u(forced_dof,:)/height,"DisplayName","nonlinear full")
-plot(TI_NL_red.Solution.time, TI_NL_red.Solution.u(forced_dof,:)/height,"DisplayName","nonlinear red")
+% plot(TI_NL.Solution.time, TI_NL.Solution.u(forced_dof,:)/height,"DisplayName","nonlinear full")
+% plot(TI_NL_red.Solution.time, TI_NL_red.Solution.u(forced_dof,:)/height,"DisplayName","nonlinear red")
 plot(TI_NL_t.Solution.time, TI_NL_t.Solution.u(forced_dof,:)/height,"DisplayName","nonlinear tensor")
+plot(TI_NL_t.Solution.time(end-fft_cycles*T/dt:end),last_cycles_sol/height)
 xlabel('time'); 
 ylabel('|Q_1| / height [-]')
 grid on;
 legend
 ax=gca;
-text(tmax/4,ax.YLim(2),"time full = " + num2str(time_nonlin_full))
-text(tmax/4,ax.YLim(2)/2,"time red = " + num2str(time_nonlin_red))
-text(tmax/4,0,"time tensor = " + num2str(time_nonlin_tensor))
-text(tmax/2,ax.YLim(1)*3/4,"tensor error wrt full= " + ...
-    num2str(norm(TI_NL.Solution.u(forced_dof,:)-TI_NL_t.Solution.u(forced_dof,:))))
-text(tmax/2,ax.YLim(1)/2,"red error wrt full= " + ...
-    num2str(norm(TI_NL.Solution.u(forced_dof,:)-TI_NL_red.Solution.u(forced_dof,:))))
+% text(tmax/4,ax.YLim(2),"time full = " + num2str(time_nonlin_full))
+% text(tmax/4,ax.YLim(2)/2,"time red = " + num2str(time_nonlin_red))
+% text(tmax/4,0,"time tensor = " + num2str(time_nonlin_tensor))
+% text(tmax/2,ax.YLim(1)*3/4,"tensor error wrt full= " + ...
+%     num2str(norm(TI_NL.Solution.u(forced_dof,:)-TI_NL_t.Solution.u(forced_dof,:))))
+% text(tmax/2,ax.YLim(1)/2,"red error wrt full= " + ...
+%     num2str(norm(TI_NL.Solution.u(forced_dof,:)-TI_NL_red.Solution.u(forced_dof,:))))

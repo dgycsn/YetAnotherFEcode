@@ -13,6 +13,7 @@ clc
 close all
 
 imod = 1; % mode analyze
+tic
 % NOTE: you can load "BeamNLvib.mat" which contains the results for the
 % beam meshed with 8 elements (all other parameters set as in this script).
 % Run the PLOT sections to inspect the results.
@@ -78,7 +79,7 @@ forced_dof_c = BeamAssembly.free2constrained_index( forced_dof );
 n_VMs = ndofs; % first n_VMs modes with lowest frequency calculated 
 Kc = BeamAssembly.constrain_matrix(K);
 Mc = BeamAssembly.constrain_matrix(M);
-[Phi,om2] = eigs(Kc, Mc, n_VMs, 'SM'); %Phi-->V0 in fe code
+[Phi,om2] = eigs(Kc, Mc, n_VMs, 'SM');
 [om, ind] = sort(sqrt(diag(om2)));
 f0 = om/2/pi;
 Phi = Phi(:,ind);
@@ -93,93 +94,50 @@ x = Nodes(:, 1);
 y = Nodes(:, 2);
 
 % Damping _________________________________________________________________
-Qfactor = 100;
-csi = 1./(2*Qfactor);   % dimensionless damping
-om0 = 2*pi*f0(1);       % first eigenfrequency
-alfa = 2 * om0 * csi;
-D = alfa*M;             % Mass-proportinal damping: D = a*M
-BeamAssembly.DATA.D = D;
-Dc = BeamAssembly.constrain_matrix(D);
-% RAYLEIGH DAMPING ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-% C = a*M + b*Kt
-% disp(' Rayleigh Damping')
-% Qfactors = [100 200]';
-% frequenz = [1 2]';
-% csi = 1./(2*Qfactors);
-% om0 = 2*pi*f0(frequenz);
-% AA = [1./(2*om0) om0/2];
-% if size(AA,1)==size(AA,2)
-%     XX  = AA\csi;
-% else
-%     XX = (AA'*AA)\(AA'*csi);
-% end
-% a = XX(1);
-% b = XX(2);
-% 
-% fprintf(' alpha = %.2i, beta = %.2i\n\n',a,b)
-% % ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-% D=a*M+b*K;
-% BeamAssembly.DATA.C=D;
-% Dc=BeamAssembly.constrain_matrix(D);
-
-%% reduced basis
-m = 3; % use the first m VMs in reduction
-V = Phi(:,1:m);
-Vc = BeamAssembly.constrain_vector(Phi(:,1:m));
-Kc = BeamAssembly.constrain_matrix(K);
-Mc = BeamAssembly.constrain_matrix(M);
-figure
-for i=1:m
-    LHS_matrix=[full(Kc-om(i)^2*Mc) -Mc*Vc(:,i);
-                (-Mc*Vc(:,i))' 0];
-    for j=1:m
-        
-        mystiffness_derivative=full(BeamAssembly.stiffness_derivative(u0,V(:,j)));
-        mystiffness_derivative=BeamAssembly.constrain_matrix(mystiffness_derivative);
-        RHS_vector=[-mystiffness_derivative*Vc(:,i);0];
-        myresult=LHS_matrix^-1*RHS_vector;
-        modal_der=myresult(1:end-1);
-        modal_der = BeamAssembly.unconstrain_vector(modal_der);
-        subplot(m,(m+1)/2+1,(i-1)*m+j)
-        plot(modal_der(1:3:end))
-        title(append('dphi_',num2str(i),'/dq_',num2str(j)))
-        if i<=j
-            V=[V modal_der];
-        end
-%     figure
-%     plot(modal_der)
-    end
+% Qfactor = 100;
+% csi = 1./(2*Qfactor);   % dimensionless damping
+% om0 = 2*pi*f0(1);       % first eigenfrequency
+% alfa = 2 * om0 * csi;
+% D = alfa*M;             % Mass-proportinal damping: D = a*M
+% BeamAssembly.DATA.D = D;
+% Dc = BeamAssembly.constrain_matrix(D);
+disp(' Rayleigh Damping')
+Qfactors = [100 200]';
+frequenz = [1 2]';
+csi = 1./(2*Qfactors);
+om0 = 2*pi*f0(frequenz);
+AA = [1./(2*om0) om0/2];
+if size(AA,1)==size(AA,2)
+    XX  = AA\csi;
+else
+    XX = (AA'*AA)\(AA'*csi);
 end
-sgtitle('modal derivatives in plane') 
-%% Reduced assembly 
-BeamReducedAssembly = ReducedAssembly(BeamMesh,V);
+a = XX(1);
+b = XX(2);
+fprintf(' alpha = %.2i, beta = %.2i\n\n',a,b)
+% 
+D=a*M+b*K;
+BeamAssembly.DATA.D=D;
+Dc=BeamAssembly.constrain_matrix(D);
 
-BeamReducedAssembly.DATA.M = BeamReducedAssembly.mass_matrix();
-BeamReducedAssembly.DATA.D = V'*D*V;
-BeamReducedAssembly.DATA.K =  BeamReducedAssembly.stiffness_matrix();
+%% (1) NLvib: NMA - Harmonic Balance                                
+% Example adapted from "09_beam_cubicSpring_NM" from NLvib
 
+BeamSystem = FE_system( BeamAssembly, Fext );
 
-ndofs = length(BeamReducedAssembly.DATA.M);
-Fext_red=V'*Fext ;
-% Fextc_red = BeamReducedAssembly.constrain_vector( Fext_red );
-%how to constrain reduced vectors (is it even possible?)
-%% (2) NLvib:  FRF - Harmonic Balance reduced                            	
-BeamSystem_red = FE_system( BeamReducedAssembly, Fext_red );
-% BeamSystem_red.V=V;
+PHI_lin = BeamAssembly.constrain_vector(Phi);
 
-PHI_lin = BeamReducedAssembly.constrain_vector(Phi);
+%% (2) NLvib:  FRF - Harmonic Balance                             	
 
 omi = om(imod);         % linear eigenfrequency
 
 % Analysis parameters
 H = 7;                  % harmonic order
 N = 3*H+1;              % number of time samples per period
-% Om_s = omi * 0.95;   	% start frequency
-% Om_e = omi * 1.1;    	% end frequency
-Om_s=300;
-Om_e=450;
+Om_s = 390;   	% start frequency
+Om_e = 410;    	% end frequency
 ds = 1;                 % Path continuation step size
-exc_lev = [1];       
+exc_lev = [5];       
 
 fprintf('\n\n FRF from %.2f to %.2f rad/s \n\n', Om_s, Om_e)
 
@@ -187,23 +145,21 @@ fprintf('\n\n FRF from %.2f to %.2f rad/s \n\n', Om_s, Om_e)
 r2 = cell(length(exc_lev),1);
 for iex = 1 : length(exc_lev)
     % Set excitation level
-    BeamSystem_red.Fex1 = Fext_red * exc_lev(iex);
+    BeamSystem.Fex1 = Fextc * exc_lev(iex);
     
     % Initial guess (solution of underlying linear system)
-    Q1 = (-Om_s^2*BeamSystem_red.M + 1i*Om_s*BeamSystem_red.D +...
-        BeamSystem_red.K) \ Fext_red;
+    Q1 = (-Om_s^2*Mc + 1i*Om_s*Dc + Kc) \ Fextc;
     y0 = zeros( (2*H+1)*ndofs , 1);
     y0( ndofs + (1:2*ndofs) ) = [real(Q1);-imag(Q1)];
     
     % stuff for scaling
-    qscl = max(abs((-omi^2*BeamSystem_red.M + ...
-        1i*omi*BeamSystem_red.D + BeamSystem_red.K) \ Fext_red));
+    qscl = max(abs((-omi^2*Mc + 1i*omi*Dc + Kc) \ Fextc));
     dscale = [y0*0+qscl; omi];
     Sopt = struct('Dscale', dscale, 'dynamicDscale', 1);
     
     % Solve and continue w.r.t. Om	
     [X2, Solinfo, Sol] = solve_and_continue(y0, ...
-        @(X) HB_residual_reduced(X, BeamSystem_red, H, N, 'FRF',V), ...
+        @(X) HB_residual(X, BeamSystem, H, N, 'FRF'), ...
         Om_s, Om_e, ds, Sopt);
     
     % Interpret solver output
@@ -211,22 +167,20 @@ for iex = 1 : length(exc_lev)
     
     results.FRF.HB{iex} = r2{iex};
 end
+
 %% (2) PLOT                                                         
 
 r2 = results.FRF.HB;
 
-figure;hold on
+figure
 h = 1;
 for iex = 1 : length(exc_lev)
     % 1st harmonic amplitude of the forced dof (use force_dof_c!)
-    Qre_full=pagemtimes( V,r2{iex}.Qre);
-    Qim_full=pagemtimes(V,r2{iex}.Qim);
-    A = Qre_full(forced_dof_c, :, h);
-    B = Qim_full(forced_dof_c, :, h);
+    A = r2{iex}.Qre(forced_dof_c, :, h);
+    B = r2{iex}.Qim(forced_dof_c, :, h);
     W = r2{iex}.omega;
     a1 = squeeze(sqrt( A.^2 + B.^2 ));
-    plot(W, a1 / height, 'linewidth', 2,"Color","r","DisplayName",...
-        "nlvib nonlin reduced"); hold on
+    plot(W, a1 / height, 'linewidth', 1); hold on
 end
 grid on
 axis tight
@@ -234,21 +188,35 @@ xlabel('\omega [rad/s]')
 ylabel('|Q_1| / height [-]')
 title('FRF with Harmonic Balance')
 
+try
+    % LINEAR RESPONSE
+    % compute the linear FRF for comparison
+    nw = 201;
+    w_linear = linspace(Om_s, Om_e, nw);
+    for iex = 1 : length(exc_lev)
+        fr_linear = zeros(nw, ndofs);
+        for ii = 1:nw
+            w = w_linear(ii);
+            fr_linear(ii,:) = (-w^2*Mc + 1i*w*Dc + Kc) \ Fextc * exc_lev(iex);
+        end
+        plot(w_linear, abs(fr_linear(:, forced_dof_c))/height, 'k--')
+    end
+    drawnow
+end
+toc
+nlvib_lin_freq=w_linear;
+nlvib_lin_amp=abs(fr_linear(:, forced_dof_c))/height;
+nlvib_nonlin_freq=W;
+nlvib_nonlin_amp=a1/height;
+% save("nlvib_freq_resp_30_8750","nlvib_lin_amp","nlvib_lin_freq","nlvib_nonlin_amp","nlvib_nonlin_freq")
 %%
-% load("nlvib_freq_resp_30_8750.mat")
-% plot(nlvib_lin_freq,nlvib_lin_amp,"DisplayName","nlvib lin",...
-%     "LineStyle","--","LineWidth",2,"Color","k")
-% plot(nlvib_nonlin_freq,nlvib_nonlin_amp,"DisplayName","nlvib nonlin full",...
-%     "LineStyle",":","LineWidth",2,"Color","k")
-% legend
-
-s=sprintf("freq_resp/NLvibred_"+...
-    "Q1_"+num2str(Qfactor(1))+...
-...     "Q2_"+num2str(Qfactors(2))+...
+s=sprintf("freq_resp/NLvib_"+...
+    "Q1_"+num2str(Qfactors(1))+...
+    "Q2_"+num2str(Qfactors(2))+...
     "_famp"+num2str(exc_lev)+".fig");
 saveas(gcf,s); %saves the figure generated with a timestamp
-s=sprintf("freq_resp/NLvibred_"+...
-    "Q1_"+num2str(Qfactor(1))+...
-...     "Q2_"+num2str(Qfactors(2))+...
+s=sprintf("freq_resp/NLvib"+...
+    "Q1_"+num2str(Qfactors(1))+...
+    "Q2_"+num2str(Qfactors(2))+...
     "_famp"+num2str(exc_lev)+".png");
 saveas(gcf,s); %saves the figure generated with a timestamp

@@ -73,7 +73,7 @@ f0 = om/2/pi;
 % RAYLEIGH DAMPING ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 % C = a*M + b*Kt
 disp(' Rayleigh Damping')
-Qfactors = [100 40]';
+Qfactors = [100 200]';
 frequenz = [1 2]';
 csi = 1./(2*Qfactors);
 om0 = 2*pi*f0(frequenz);
